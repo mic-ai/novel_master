@@ -13,6 +13,9 @@
 /.next/
 /out/
 
+# local build output (Windows/WSL EIO workaround)
+/tmp/
+
 # production
 /build
 
