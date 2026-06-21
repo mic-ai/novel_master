@@ -1,16 +1,12 @@
 import type { NextAuthConfig } from 'next-auth';
-import Google from 'next-auth/providers/google';
-import GitHub from 'next-auth/providers/github';
 
-// Node.js 環境専用（Edge Runtime 非対応 — providers を含むため）
-// ミドルウェア用は lib/auth.middleware-config.ts を使用
-
-// フル設定（sign-in 用 — auth.ts で使用）
-export const authConfig: NextAuthConfig = {
+// Edge Runtime 専用設定 — Google/GitHub provider を一切インポートしない
+// auth.config.ts は Node.js 環境専用（providers を含むため Edge 非対応）
+export const authMiddlewareConfig: NextAuthConfig = {
   secret:    process.env.AUTH_SECRET,
-  providers: [Google, GitHub],
   session:   { strategy: 'jwt' },
   pages:     { signIn: '/login' },
+  providers: [],
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;

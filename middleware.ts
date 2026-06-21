@@ -1,5 +1,5 @@
 import NextAuth from 'next-auth';
-import { authMiddlewareConfig } from '@/lib/auth.config';
+import { authMiddlewareConfig } from '@/lib/auth.middleware-config';
 
 // Edge Runtime 対応：providers なしの最小設定で JWT 検証のみ行う
 // auth.ts の PrismaAdapter インスタンスとは別インスタンスだが、
