@@ -1,0 +1,231 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "windows"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  name             String?
+  emailVerified    DateTime?
+  image            String?
+  password         String?   // null for OAuth-only users
+  plan             Plan      @default(FREE)
+  stripeCustomerId String?
+  createdAt        DateTime  @default(now())
+  projects         Project[]
+  accounts         Account[]
+  sessions         Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+enum Plan {
+  FREE
+  STARTER
+  PRO
+  TEAM
+}
+
+model Project {
+  id                 String           @id @default(cuid())
+  userId             String
+  user               User             @relation(fields: [userId], references: [id])
+  title              String
+  genre              String
+  subgenre           String?
+  media              String           @default("book")
+  targetWords        Int              @default(100000)
+  status             String           @default("step_1")
+  genreRulesSnapshot Json?
+  chapterWordTarget  Json?
+  tempoPlan          Json?
+  plotOutline        Json?
+  worldSettings      Json?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  characters         Character[]
+  chapters           Chapter[]
+  chapterOutlines    ChapterOutline[]
+  foreshadowing      Foreshadowing[]
+  aiSessions         AiSession[]
+  copyrightRecords   CopyrightRecord[]
+  fingerprints       TextFingerprint[]
+  plagiarismScans    PlagiarismScanLog[]
+  exportRecords      ExportRecord[]
+}
+
+model Character {
+  id               String  @id @default(cuid())
+  projectId        String
+  project          Project @relation(fields: [projectId], references: [id])
+  role             String
+  name             String
+  age              Int?
+  lack             String?
+  want             String?
+  weakness         String?
+  arc              String?
+  arcStart         String?
+  arcEnd           String?
+  trait            String?
+  relationshipRole String?
+  arcProgress      Int     @default(0)
+}
+
+model Chapter {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id])
+  number       Int
+  title        String?
+  content      String?  @db.Text
+  targetWords  Int?
+  actualWords  Int      @default(0)
+  status       String   @default("not_started")
+  emotionScore Int?
+  reviewReport Json?
+  summary      String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([projectId, number])
+}
+
+model ChapterOutline {
+  id                String   @id @default(cuid())
+  projectId         String
+  project           Project  @relation(fields: [projectId], references: [id])
+  chapterNumber     Int
+  title             String?
+  targetWords       Int?
+  targetMin         Int?
+  targetMax         Int?
+  povCharacterId    String?
+  sceneType         String?
+  tempoRole         String?
+  chapterEndingRule String?
+  scenes            Json?
+  foreshadowingIds  String[]
+}
+
+model Foreshadowing {
+  id             String  @id @default(cuid())
+  projectId      String
+  project        Project @relation(fields: [projectId], references: [id])
+  description    String
+  plantedChapter Int?
+  resolveChapter Int?
+  isPlanted      Boolean @default(false)
+  isResolved     Boolean @default(false)
+  isFake         Boolean @default(false)
+}
+
+model AiSession {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id])
+  agentType String
+  messages  Json
+  createdAt DateTime @default(now())
+}
+
+model UsageLog {
+  id        String   @id @default(cuid())
+  userId    String
+  tokens    Int
+  feature   String
+  createdAt DateTime @default(now())
+}
+
+model CopyrightRecord {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id])
+  userId        String
+  chapterNumber Int?
+  contentHash   String
+  contentSize   Int
+  timestamp     DateTime @default(now())
+  prevHash      String?
+  signature     String
+  metadata      Json
+  isPublished   Boolean  @default(false)
+  publishedAt   DateTime?
+}
+
+model TextFingerprint {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id])
+  chapterId    String?
+  fingerprints Json
+  kgramSize    Int      @default(5)
+  windowSize   Int      @default(10)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([projectId, chapterId])
+}
+
+model PlagiarismScanLog {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id])
+  scanType      String
+  targetUrl     String?
+  similarity    Float
+  matchedRanges Json?
+  status        String   @default("pending")
+  scannedAt     DateTime @default(now())
+}
+
+model ExportRecord {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id])
+  userId      String
+  format      String
+  watermarkId String
+  exportedAt  DateTime @default(now())
+  ipAddress   String?
+  signedUrl   String?
+  expiresAt   DateTime?
+}
