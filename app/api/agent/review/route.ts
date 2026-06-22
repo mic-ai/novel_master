@@ -4,6 +4,8 @@ import { prisma } from '@/lib/db/prisma';
 import { auth } from '@/lib/auth';
 import type { GenreRule } from '@/lib/prompts/genre-rules';
 
+export const maxDuration = 60;
+
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {

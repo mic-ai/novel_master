@@ -3,6 +3,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '@/lib/db/prisma';
 import { getGenreContext, getSceneWordRange } from '@/lib/agent/utils/get-genre-context';
 
+export const maxDuration = 60;
+
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {

@@ -4,6 +4,8 @@ import { GENRE_RULES } from '@/lib/prompts/genre-rules';
 
 const DUMMY_USER_ID = 'dummy-user-001';
 
+export const maxDuration = 60;
+
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {

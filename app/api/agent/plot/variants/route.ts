@@ -13,6 +13,8 @@ const VARIANT_HINTS = [
 
 const VARIANT_LABELS = ['王道', 'ダーク', 'ライト'] as const;
 
+export const maxDuration = 60;
+
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {

@@ -2,6 +2,8 @@ import { auth } from '@/lib/auth';
 import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '@/lib/db/prisma';
 
+export const maxDuration = 60;
+
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {

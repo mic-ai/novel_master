@@ -773,4 +773,43 @@ GitHub → Settings → Developer Settings → OAuth Apps → New OAuth App
 
 ---
 
+## 16. 本番デプロイ完了（2026-06-21）
+
+### デプロイ先
+
+| サービス | URL / 情報 |
+|---|---|
+| **Vercel（フロント）** | `https://novel-master-chi.vercel.app` |
+| **GitHub リポジトリ** | `https://github.com/mic-ai/novel_master` |
+| **Railway（DB）** | PostgreSQL — `reseau.proxy.rlwy.net:22872` |
+
+### 本番環境変数（Vercel に設定済み）
+
+`ANTHROPIC_API_KEY` / `DATABASE_URL` / `AUTH_SECRET` / `AUTH_URL` / `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` / `COPYRIGHT_SIGNING_KEY` / `CONTENT_ENCRYPTION_KEY`
+
+**重要:** next-auth v5 では `NEXTAUTH_URL` ではなく `AUTH_URL` を使う。
+
+### トラブルシューティング記録
+
+| 症状 | 原因 | 対処 |
+|---|---|---|
+| `MIDDLEWARE_INVOCATION_FAILED` | `auth.config.ts` の Google/GitHub provider インポートが Edge Runtime で失敗 | `middleware.ts` を next-auth 依存なしの Cookie 存在チェックに変更（`middleware.ts` 参照） |
+| `TypeError: Invalid URL` | `NEXTAUTH_URL` が未設定（next-auth v5 は `AUTH_URL` を要求） | Vercel に `AUTH_URL=https://novel-master-chi.vercel.app` を追加 |
+| `redirect_uri_mismatch` | Google Cloud Console で別のクライアント ID（`msf3e3...`）にリダイレクト URI を登録していた | 正しいクライアント `novel-agent-local`（`303p...`）に `https://novel-master-chi.vercel.app/api/auth/callback/google` を追加 |
+
+### ミドルウェア変更の補足
+
+`middleware.ts` は next-auth を使わないシンプルな実装に変更済み：
+- `__Secure-authjs.session-token`（HTTPS）または `authjs.session-token`（HTTP）Cookie の存在で認証状態を判定
+- JWT 署名検証は省略（セッション改ざんは Node.js ランタイムの next-auth ハンドラーが担保）
+- 関連ファイル: `lib/auth.middleware-config.ts`（Edge 向け設定、現在 middleware.ts からは未使用）
+
+### Google OAuth クライアント情報
+
+- **クライアント名:** `novel-agent-local`
+- **クライアント ID:** `712331988505-303pg6rrkilrd34ud2kes37iegaod9in.apps.googleusercontent.com`
+- **承認済みリダイレクト URI:** `http://localhost:3000/api/auth/callback/google`（ローカル）/ `https://novel-master-chi.vercel.app/api/auth/callback/google`（本番）
+
+---
+
 *このCLAUDE.mdはプロジェクトの唯一の設定ソースです。仕様変更時は必ずこのファイルを先に更新してください。*
