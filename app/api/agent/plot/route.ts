@@ -41,7 +41,11 @@ export async function POST(req: Request) {
 
   const worldSettings = (project.worldSettings ?? {}) as WorldSettings;
 
-  const obstacles: Obstacle[] = [];
+  const p = project as typeof project & { goal?: string | null; plotObstacles?: unknown };
+  const goal = p.goal ?? '';
+  const obstacles = Array.isArray(p.plotObstacles)
+    ? (p.plotObstacles as unknown as Obstacle[])
+    : [];
 
   const prompt = buildPlotGeneratorPrompt({
     genre:        project.genre,
@@ -49,7 +53,7 @@ export async function POST(req: Request) {
     targetWords:  project.targetWords,
     characters,
     worldSettings,
-    goal:         '主人公の目標',
+    goal,
     obstacles,
   });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -36,12 +36,13 @@ const TEMPO_ICONS: Record<string, string> = {
   neutral: '○',
 };
 
-export default function StructurePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function StructurePage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [plotError, setPlotError] = useState('');
   const [structuring, setStructuring] = useState(false);
   const [refining, setRefining]       = useState(false);
   const [showRefine, setShowRefine]   = useState(false);
@@ -66,17 +67,24 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
   const handleGeneratePlot = async () => {
     if (!project) return;
     setGenerating(true);
+    setPlotError('');
     try {
       const res = await fetch('/api/agent/plot', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ projectId: project.id }),
       });
-      const data = await res.json() as { plotOutline?: PlotOutline };
+      const data = await res.json() as { plotOutline?: PlotOutline; error?: string };
+      if (!res.ok || data.error) {
+        setPlotError(data.error ?? 'プロット生成に失敗しました');
+        return;
+      }
       if (data.plotOutline) {
         setProject((prev) => prev ? { ...prev, plotOutline: data.plotOutline ?? null } : prev);
         setActiveTab('plot');
       }
+    } catch {
+      setPlotError('通信エラーが発生しました。しばらくしてから再試行してください。');
     } finally {
       setGenerating(false);
     }
@@ -272,6 +280,9 @@ export default function StructurePage({ params }: { params: Promise<{ id: string
                 >
                   {generating ? 'プロット生成中...' : 'AIでプロットを生成'}
                 </button>
+                {plotError && (
+                  <p className="text-sm text-red-500 mt-3">{plotError}</p>
+                )}
               </div>
             ) : (
               <>

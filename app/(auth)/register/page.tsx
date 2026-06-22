@@ -6,11 +6,12 @@ import Link from 'next/link';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [email,    setEmail]    = useState('');
-  const [password, setPassword] = useState('');
-  const [name,     setName]     = useState('');
-  const [error,    setError]    = useState('');
-  const [loading,  setLoading]  = useState(false);
+  const [email,      setEmail]      = useState('');
+  const [password,   setPassword]   = useState('');
+  const [name,       setName]       = useState('');
+  const [inviteCode, setInviteCode] = useState('');
+  const [error,      setError]      = useState('');
+  const [loading,    setLoading]    = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,7 +21,7 @@ export default function RegisterPage() {
       const res = await fetch('/api/auth/register', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email, password, name }),
+        body:    JSON.stringify({ email, password, name, inviteCode }),
       });
       const data = await res.json() as { error?: string };
       if (!res.ok) {
@@ -39,10 +40,21 @@ export default function RegisterPage() {
         <div className="text-center space-y-2">
           <div className="text-5xl">📖</div>
           <h1 className="text-2xl font-bold text-gray-900">アカウント登録</h1>
-          <p className="text-gray-500 text-sm">無料で始める</p>
+          <p className="text-gray-500 text-sm">招待コードが必要です</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm text-gray-700 mb-1">招待コード</label>
+            <input
+              type="text"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              required
+              placeholder="招待コードを入力してください"
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+          </div>
           <div>
             <label className="block text-sm text-gray-700 mb-1">名前（任意）</label>
             <input

@@ -2,8 +2,15 @@ import { prisma } from '@/lib/db/prisma';
 import { hashPassword } from '@/lib/db/password';
 
 export async function POST(req: Request) {
-  const body = await req.json() as { email?: string; password?: string; name?: string };
-  const { email, password, name } = body;
+  const body = await req.json() as { email?: string; password?: string; name?: string; inviteCode?: string };
+  const { email, password, name, inviteCode } = body;
+
+  const requiredCode = process.env.INVITE_CODE;
+  if (requiredCode) {
+    if (!inviteCode || inviteCode.trim() !== requiredCode.trim()) {
+      return Response.json({ error: '招待コードが正しくありません' }, { status: 403 });
+    }
+  }
 
   if (!email || !password) {
     return Response.json({ error: 'メールアドレスとパスワードは必須です' }, { status: 400 });

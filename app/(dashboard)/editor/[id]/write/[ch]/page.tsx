@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import WritingEditor from '@/components/editor/WritingEditor';
@@ -50,9 +50,9 @@ interface ProjectData {
 export default function WritePage({
   params,
 }: {
-  params: Promise<{ id: string; ch: string }>;
+  params: { id: string; ch: string };
 }) {
-  const { id, ch } = use(params);
+  const { id, ch } = params;
   const chapterNumber = parseInt(ch, 10);
   const router = useRouter();
 

@@ -80,7 +80,14 @@ export default function NewProjectPage() {
 
   const handleStep4Complete = async (data: { goal: string; obstacles: string[] }) => {
     if (!project?.id) return;
-    void data;
+    await fetch(`/api/projects/${project.id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        goal:          data.goal,
+        plotObstacles: data.obstacles.map((d) => ({ description: d })),
+      }),
+    });
     sessionStorage.removeItem(STORAGE_KEY);
     router.push(`/editor/${project.id}/structure`);
   };

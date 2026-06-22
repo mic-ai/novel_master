@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth';
 import Anthropic from '@anthropic-ai/sdk';
 import { GENRE_RULES } from '@/lib/prompts/genre-rules';
+import { prisma } from '@/lib/db/prisma';
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -61,7 +62,14 @@ export async function POST(req: Request) {
       inner_goal: string;
       obstacles: Array<{ description: string; part: string; type: string; intensity: number }>;
     };
-    void projectId;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (prisma.project.updateMany as any)({
+      where: { id: projectId, userId: session.user.id },
+      data:  {
+        goal:          result.goal,
+        plotObstacles: result.obstacles,
+      },
+    });
     return Response.json(result);
   } catch {
     return Response.json({ raw: content.text });
