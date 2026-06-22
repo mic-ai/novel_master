@@ -66,7 +66,7 @@ export async function POST(req: Request) {
     const client = new Anthropic();
     const message = await client.messages.create({
       model:      'claude-haiku-4-5-20251001',
-      max_tokens: 4096,
+      max_tokens: 8192,
       system:     prompt,
       messages:   [{ role: 'user', content: 'プロット概要を生成してください。' }],
     });
@@ -109,7 +109,7 @@ export async function POST(req: Request) {
 
       return Response.json({ plotOutline, tempoPlan });
     } catch {
-      // JSON解析失敗時はAIの生テキストとエラーを返す
+      console.error('[plot] JSON parse failed. raw[:300]:', content.text.slice(0, 300));
       return Response.json(
         { error: 'AIの応答を解析できませんでした。再試行してください。', raw: content.text },
         { status: 422 },
