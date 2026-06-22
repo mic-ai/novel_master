@@ -77,7 +77,11 @@ export async function POST(req: Request) {
     }
 
     try {
-      const _raw = content.text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+      // コードブロックを除去し、最初の { から最後の } までを抽出
+      let _raw = content.text.replace(/^```(?:json)?\s*/im, "").replace(/\s*```\s*$/m, "").trim();
+      const jsonStart = _raw.indexOf('{');
+      const jsonEnd   = _raw.lastIndexOf('}');
+      if (jsonStart !== -1 && jsonEnd !== -1) _raw = _raw.slice(jsonStart, jsonEnd + 1);
       const plotOutline = JSON.parse(_raw) as { total_chapters: number; [key: string]: unknown };
       const totalChapters = plotOutline['total_chapters'] ?? 20;
 
@@ -105,7 +109,11 @@ export async function POST(req: Request) {
 
       return Response.json({ plotOutline, tempoPlan });
     } catch {
-      return Response.json({ raw: content.text });
+      // JSON解析失敗時はAIの生テキストとエラーを返す
+      return Response.json(
+        { error: 'AIの応答を解析できませんでした。再試行してください。', raw: content.text },
+        { status: 422 },
+      );
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
