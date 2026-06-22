@@ -43,7 +43,7 @@ export async function POST(req: Request) {
 
   const client = new Anthropic();
   const message = await client.messages.create({
-    model:      'claude-sonnet-4-5',
+    model:      'claude-haiku-4-5-20251001',
     max_tokens: 4096,
     system:     `あなたは章構成の専門家です。プロット概要から各章の詳細な構成概要を作成します。
 
