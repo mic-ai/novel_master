@@ -64,36 +64,26 @@ ${JSON.stringify(ctx.worldSettings, null, 2)}
 - 外的目標: ${ctx.goal}
 - 障害: ${ctx.obstacles.map((o) => o.description).join(' / ')}
 
-## 出力形式（JSON厳守）
-以下のJSONスキーマに従い、JSONのみを返してください。マークダウンのコードブロックは不要です。
+## 出力形式（JSON厳守・簡潔に）
+以下のJSONスキーマに従い、JSONのみを返してください。マークダウンのコードブロック不要。章数は最大15章に抑えてください。
 
 {
-  "total_chapters": 整数,
+  "total_chapters": 整数（最大15）,
   "parts": [
     {
       "name": "パート名",
       "chapter_range": [開始章番号, 終了章番号],
-      "focus": "このパートの焦点"
+      "focus": "焦点（30字以内）"
     }
   ],
   "chapters": [
     {
       "number": 章番号,
       "title": "章タイトル",
-      "summary": "この章で起こること（200字以内）",
+      "summary": "この章で起こること（100字以内）",
       "emotion_score": 0から10の感情スコア,
       "scene_type": "シーンタイプ",
-      "tempo_role": "tension|release|neutral",
-      "key_events": ["主要イベント1", "主要イベント2"],
-      "foreshadowing": ["この章で埋める伏線（あれば）"]
-    }
-  ],
-  "foreshadowing_list": [
-    {
-      "description": "伏線の説明",
-      "plant_chapter": 埋める章番号,
-      "resolve_chapter": 回収する章番号,
-      "is_fake": false
+      "tempo_role": "tension|release|neutral"
     }
   ]
 }`;

@@ -66,7 +66,7 @@ export async function POST(req: Request) {
     const client = new Anthropic();
     const message = await client.messages.create({
       model:      'claude-haiku-4-5-20251001',
-      max_tokens: 8192,
+      max_tokens: 4096,
       system:     prompt,
       messages:   [{ role: 'user', content: 'プロット概要を生成してください。' }],
     });
