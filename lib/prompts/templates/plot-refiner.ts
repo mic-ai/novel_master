@@ -13,17 +13,22 @@ type PlotOutline = {
 };
 
 export function buildPlotRefinerPrompt(ctx: {
-  currentPlot:  PlotOutline;
-  editRequest:  string;
-  genre:        string;
-  media:        string;
+  currentPlot:     PlotOutline;
+  editRequest:     string;
+  genre:           string;
+  media:           string;
+  targetChapters?: number[];
 }) {
   const plotJson = JSON.stringify(ctx.currentPlot, null, 2);
+
+  const targetSection = ctx.targetChapters && ctx.targetChapters.length > 0
+    ? `## 修正対象の章（厳守）\n第 ${ctx.targetChapters.join('・')} 章のみを修正してください。\n対象外の章は title / summary / emotion_score / scene_type / tempo_role を一切変更しないでください。\n\n`
+    : '';
 
   return `あなたは「${ctx.genre}」ジャンル（${ctx.media === 'book' ? '書籍' : 'ウェブ小説'}）の小説構成エディターです。
 以下の既存プロットをユーザーの指示に従って修正し、同じJSON形式で返してください。
 
-## ユーザーの修正指示
+${targetSection}## ユーザーの修正指示
 ${ctx.editRequest || '（指示なし — 全体的な改善をしてください）'}
 
 ## 既存プロット (JSON)

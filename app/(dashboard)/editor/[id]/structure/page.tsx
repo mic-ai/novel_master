@@ -44,9 +44,10 @@ export default function StructurePage({ params }: { params: { id: string } }) {
   const [generating, setGenerating] = useState(false);
   const [plotError, setPlotError] = useState('');
   const [structuring, setStructuring] = useState(false);
-  const [refining, setRefining]       = useState(false);
-  const [showRefine, setShowRefine]   = useState(false);
+  const [refining, setRefining]           = useState(false);
+  const [showRefine, setShowRefine]       = useState(false);
   const [refineRequest, setRefineRequest] = useState('');
+  const [targetChapters, setTargetChapters] = useState<number[]>([]);
   const [activeTab, setActiveTab] = useState<'plot' | 'structure'>('plot');
   const [variants, setVariants]           = useState<(PlotOutline | null)[] | null>(null);
   const [variantLabels, setVariantLabels] = useState<string[]>([]);
@@ -74,20 +75,57 @@ export default function StructurePage({ params }: { params: { id: string } }) {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ projectId: project.id }),
       });
-      const data = await res.json() as { plotOutline?: PlotOutline; error?: string };
-      if (!res.ok || data.error) {
+
+      if (!res.ok || !res.body) {
+        const data = await res.json() as { error?: string };
         setPlotError(data.error ?? 'プロット生成に失敗しました');
         return;
       }
-      if (data.plotOutline) {
-        setProject((prev) => prev ? { ...prev, plotOutline: data.plotOutline ?? null } : prev);
-        setActiveTab('plot');
+
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer    = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const event = JSON.parse(line.slice(6)) as { type: string; message?: string };
+            if (event.type === 'done') {
+              const projectRes  = await fetch(`/api/projects/${id}`);
+              const projectData = await projectRes.json() as { project: Project };
+              setProject(projectData.project);
+              setActiveTab('plot');
+            } else if (event.type === 'error') {
+              setPlotError(event.message ?? 'プロット生成に失敗しました');
+            }
+          } catch { /* ignore malformed SSE lines */ }
+        }
       }
     } catch {
       setPlotError('通信エラーが発生しました。しばらくしてから再試行してください。');
     } finally {
       setGenerating(false);
     }
+  };
+
+  const toggleTargetChapter = (num: number) => {
+    setTargetChapters((prev) =>
+      prev.includes(num) ? prev.filter((n) => n !== num) : [...prev, num],
+    );
+  };
+
+  const closeRefinePanel = () => {
+    setShowRefine(false);
+    setRefineRequest('');
+    setTargetChapters([]);
   };
 
   const handleRefine = async () => {
@@ -97,13 +135,16 @@ export default function StructurePage({ params }: { params: { id: string } }) {
       const res = await fetch('/api/agent/refine', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ projectId: project.id, editRequest: refineRequest }),
+        body:    JSON.stringify({
+          projectId:      project.id,
+          editRequest:    refineRequest,
+          targetChapters: targetChapters.length > 0 ? targetChapters : undefined,
+        }),
       });
       const data = await res.json() as { plotOutline?: PlotOutline };
       if (data.plotOutline) {
         setProject(prev => prev ? { ...prev, plotOutline: data.plotOutline ?? null } : prev);
-        setRefineRequest('');
-        setShowRefine(false);
+        closeRefinePanel();
       }
     } finally {
       setRefining(false);
@@ -328,13 +369,77 @@ export default function StructurePage({ params }: { params: { id: string } }) {
 
                 {/* STEP 6: プロット修正 */}
                 {showRefine ? (
-                  <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 space-y-3">
-                    <p className="text-sm font-medium text-indigo-800">プロット修正の指示を入力してください</p>
+                  <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-indigo-800">プロット修正</p>
+                      <button
+                        onClick={closeRefinePanel}
+                        className="text-xs text-gray-400 hover:text-gray-600"
+                      >
+                        閉じる
+                      </button>
+                    </div>
+
+                    {/* 章選択 */}
+                    <div>
+                      <p className="text-xs text-indigo-700 mb-2">
+                        修正する章を選択
+                        <span className="ml-1 text-indigo-400 font-normal">
+                          {targetChapters.length === 0
+                            ? '（未選択 = 全章が対象）'
+                            : `（${targetChapters.length}章選択中）`}
+                        </span>
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setTargetChapters(
+                              targetChapters.length === plotOutline.chapters.length
+                                ? []
+                                : plotOutline.chapters.map((c) => c.number),
+                            )
+                          }
+                          className={`px-2.5 py-1 rounded text-xs font-medium transition ${
+                            targetChapters.length === plotOutline.chapters.length
+                              ? 'bg-indigo-600 text-white'
+                              : 'bg-white border border-indigo-200 text-indigo-500 hover:bg-indigo-50'
+                          }`}
+                        >
+                          全章
+                        </button>
+                        {plotOutline.chapters.map((ch) => (
+                          <button
+                            key={ch.number}
+                            type="button"
+                            onClick={() => toggleTargetChapter(ch.number)}
+                            title={ch.title}
+                            className={`px-2.5 py-1 rounded text-xs font-medium transition ${
+                              targetChapters.includes(ch.number)
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50'
+                            }`}
+                          >
+                            第{ch.number}章
+                          </button>
+                        ))}
+                      </div>
+                      {targetChapters.length > 0 && (
+                        <p className="mt-1.5 text-xs text-indigo-500">
+                          {targetChapters
+                            .sort((a, b) => a - b)
+                            .map((n) => plotOutline.chapters.find((c) => c.number === n)?.title ?? `第${n}章`)
+                            .join('、')}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* 修正指示 */}
                     <textarea
                       value={refineRequest}
                       onChange={e => setRefineRequest(e.target.value)}
                       rows={3}
-                      placeholder="例: 第3章をもっと感情的な展開にしてほしい / クライマックスを第8章ではなく第10章にしたい"
+                      placeholder="例: もっと感情的な展開にしてほしい / クライマックスをより劇的にしたい"
                       className="w-full rounded-lg border border-indigo-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                     />
                     <div className="flex gap-2">
@@ -346,7 +451,7 @@ export default function StructurePage({ params }: { params: { id: string } }) {
                         {refining ? 'AI修正中...' : 'AIで修正する'}
                       </button>
                       <button
-                        onClick={() => { setShowRefine(false); setRefineRequest(''); }}
+                        onClick={closeRefinePanel}
                         className="text-sm text-gray-400 hover:text-gray-600"
                       >
                         キャンセル
@@ -364,7 +469,7 @@ export default function StructurePage({ params }: { params: { id: string } }) {
                     再生成
                   </button>
                   <button
-                    onClick={() => setShowRefine(v => !v)}
+                    onClick={() => showRefine ? closeRefinePanel() : setShowRefine(true)}
                     className="px-4 py-2 border border-indigo-200 text-indigo-600 rounded-lg text-sm hover:bg-indigo-50 transition"
                   >
                     ✏️ プロットを修正

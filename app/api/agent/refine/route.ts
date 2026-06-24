@@ -13,10 +13,11 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json() as {
-    projectId:   string;
-    editRequest: string;
+    projectId:       string;
+    editRequest:     string;
+    targetChapters?: number[];
   };
-  const { projectId, editRequest } = body;
+  const { projectId, editRequest, targetChapters } = body;
 
   const project = await prisma.project.findFirst({
     where:  { id: projectId, userId: session.user.id },
@@ -31,10 +32,11 @@ export async function POST(req: Request) {
   }
 
   const prompt = buildPlotRefinerPrompt({
-    currentPlot:  project.plotOutline as Parameters<typeof buildPlotRefinerPrompt>[0]['currentPlot'],
+    currentPlot:    project.plotOutline as Parameters<typeof buildPlotRefinerPrompt>[0]['currentPlot'],
     editRequest,
-    genre:        project.genre,
-    media:        project.media,
+    genre:          project.genre,
+    media:          project.media,
+    targetChapters: targetChapters && targetChapters.length > 0 ? targetChapters : undefined,
   });
 
   const client = new Anthropic();
