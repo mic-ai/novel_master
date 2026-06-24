@@ -44,38 +44,27 @@ export async function POST(req: Request) {
   const client = new Anthropic();
   const message = await client.messages.create({
     model:      'claude-haiku-4-5-20251001',
-    max_tokens: 4096,
-    system:     `あなたは章構成の専門家です。プロット概要から各章の詳細な構成概要を作成します。
+    max_tokens: 8192,
+    system:     `あなたは章構成の専門家です。プロット概要から各章の構成を作成します。
 
 ジャンル: ${g.label}
-章末ルール: ${g.chapter_ending_rules.join(' / ')}
 視点ルール: デフォルト=${g.pov_rules['default']}
 
-JSONのみで返してください（配列形式）:
+以下のJSON配列のみを返してください。説明文・コードブロック記号は不要です:
 [
   {
-    "chapterNumber": 章番号,
-    "title": "章タイトル",
-    "targetWords": 目標文字数（整数）,
-    "targetMin": 最小文字数,
-    "targetMax": 最大文字数,
-    "sceneType": "シーンタイプ",
-    "tempoRole": "tension|release|neutral",
-    "chapterEndingRule": "適用する章末ルール",
+    "chapterNumber": 章番号（整数）,
+    "title": "章タイトル（20字以内）",
+    "sceneType": "standard|emotional_peak|battle|mystery_reveal|sweet_scene|horror_peak|twist|setup|climax|epilogue|relief",
     "scenes": [
-      {
-        "index": 0,
-        "summary": "シーンの概要",
-        "povCharacter": "視点人物名"
-      }
-    ],
-    "foreshadowingIds": []
+      { "summary": "シーンの概要（50字以内）", "povCharacter": "視点人物名" }
+    ]
   }
 ]`,
     messages: [
       {
         role:    'user',
-        content: `プロット概要:\n${JSON.stringify(plotOutline.chapters, null, 2)}\n\nテンポ計画:\n${JSON.stringify(tempoPlan, null, 2)}`,
+        content: `プロット概要:${JSON.stringify(plotOutline.chapters)}\n\nテンポ計画:${JSON.stringify(tempoPlan)}`,
       },
     ],
   });
@@ -92,32 +81,31 @@ JSONのみで返してください（配列形式）:
     if (arrStart !== -1 && arrEnd !== -1) _raw = _raw.slice(arrStart, arrEnd + 1);
     const outlines = JSON.parse(_raw) as Array<{
       chapterNumber: number;
-      title: string;
-      targetWords: number;
-      sceneType: string;
-      tempoRole: string;
-      chapterEndingRule: string;
-      scenes: unknown;
+      title:         string;
+      sceneType:     string;
+      scenes:        unknown;
     }>;
 
-    // 各章のmin/maxをGENRE_RULESから取得
+    // tempoRole / targetWords / chapterEndingRule はコードで算出（AIに依存しない）
+    const defaultEndingRule = g.chapter_ending_rules[0] ?? '';
     const created = await Promise.all(
       outlines.map((o) => {
-        const range = getSceneWordRange(project.genre, project.media as 'book' | 'web', o.sceneType);
+        const range      = getSceneWordRange(project.genre, project.media as 'book' | 'web', o.sceneType);
+        const tempoEntry = tempoPlan.find((t) => t.chapter === o.chapterNumber);
         return prisma.chapterOutline.create({
           data: {
             projectId,
-            chapterNumber:    o.chapterNumber,
-            title:            o.title,
-            targetWords:      o.targetWords,
-            targetMin:        range.min,
-            targetMax:        range.max,
-            sceneType:        o.sceneType,
-            tempoRole:        o.tempoRole,
-            chapterEndingRule: o.chapterEndingRule,
+            chapterNumber:     o.chapterNumber,
+            title:             o.title,
+            targetWords:       range.min,
+            targetMin:         range.min,
+            targetMax:         range.max,
+            sceneType:         o.sceneType,
+            tempoRole:         tempoEntry?.role ?? 'neutral',
+            chapterEndingRule: defaultEndingRule,
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            scenes:           o.scenes as any,
-            foreshadowingIds: [],
+            scenes:            o.scenes as any,
+            foreshadowingIds:  [],
           },
         });
       }),
