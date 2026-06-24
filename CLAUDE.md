@@ -812,4 +812,173 @@ GitHub → Settings → Developer Settings → OAuth Apps → New OAuth App
 
 ---
 
+## 17. 本番テスト中の修正（2026-06-22）
+
+### 招待制登録の実装
+
+開発期間中は URL を知る人物が誰でも登録できる状態だったため、招待制に変更。
+
+| ファイル | 変更内容 |
+|---|---|
+| `app/api/auth/register/route.ts` | `process.env.INVITE_CODE` が設定されている場合、リクエストボディの `inviteCode` と照合。不一致は 403 |
+| `app/(auth)/register/page.tsx` | `inviteCode` state と入力フィールドを追加（フォーム先頭）。サブタイトルを「招待コードが必要です」に変更 |
+
+**運用:** Vercel 環境変数に `INVITE_CODE=<任意の文字列>` を追加するだけで有効化。未設定時は従来通り誰でも登録可。
+
+---
+
+### STEP4→STEP5 データフロー修正
+
+コンフリクト設計（STEP4）からプロット生成（STEP5）に進む際に「プロジェクトの再読み込みに失敗します」エラーが発生していた問題を修正。
+
+**根本原因（3層構造）:**
+
+1. `app/api/agent/conflict/route.ts` — `void projectId` でDBへの保存が捨てられていた  
+2. `app/(dashboard)/projects/new/page.tsx` — `void data` でコンフリクト結果が捨てられていた  
+3. `app/api/agent/plot/route.ts` — `goal: '主人公の目標'` がハードコーディングされていた
+
+**修正内容:**
+
+| ファイル | 修正 |
+|---|---|
+| `prisma/schema.prisma` | `Project` モデルに `goal String?` / `plotObstacles Json?` フィールドを追加 |
+| `prisma/migrations/20260622120959_add_goal_obstacles/` | Railway 本番 DB に適用済み |
+| `app/api/agent/conflict/route.ts` | AI 分析後に `prisma.project.updateMany` で goal/obstacles を DB 保存。`maxDuration = 60` 追加 |
+| `app/(dashboard)/projects/new/page.tsx` | `handleStep4Complete` を `async` に変更し `/api/projects/[id]` PATCH で goal/obstacles を保存してからリダイレクト |
+| `app/api/agent/plot/route.ts` | DB から `project.goal` / `project.plotObstacles` を読み込む形に変更 |
+
+**Railway マイグレーション注意:**
+- `postgres.railway.internal` は Railway ネットワーク内部からしか到達不可
+- ローカルからのマイグレーションは `reseau.proxy.rlwy.net:22872`（パブリックプロキシ URL）を使う
+- `$env:DATABASE_URL="postgresql://postgres:...@reseau.proxy.rlwy.net:22872/railway"` を明示指定
+
+---
+
+### React error #438 の修正（Next.js 14 vs 15 の差異）
+
+`app/(dashboard)/editor/[id]/structure/page.tsx` と `write/[ch]/page.tsx` で `use(params)` を使用していたためエラーが発生。
+
+**原因:** `use()` は Next.js 15+ の API。Next.js 14 では `params` は同期的なプレーンオブジェクト。
+
+| ファイル | 修正 |
+|---|---|
+| `editor/[id]/structure/page.tsx` | `params: Promise<{ id: string }>` → `params: { id: string }` に変更。`use` を import から削除。`const { id } = params;` に変更 |
+| `editor/[id]/write/[ch]/page.tsx` | 同様に `params.id` / `params.ch` を直接参照 |
+
+---
+
+### Vercel タイムアウト対策（全エージェントルート）
+
+Vercel serverless 関数のデフォルトタイムアウト（10秒）を超えて `ERR_CONNECTION_CLOSED` が発生。
+
+**対処:** 全 12 エージェントルートに `export const maxDuration = 60;` を追加。
+
+対象ファイル: `character` / `conflict` / `consistency` / `continue` / `genre` / `inline-edit` / `plot` / `plot/variants` / `refine` / `review` / `structure` / `summarize` / `world`
+
+---
+
+### プロット生成モデル・スキーマ最適化
+
+Sonnet モデルが 60 秒制限内に JSON を返せないタイムアウト問題を解決。
+
+| 変更 | 内容 |
+|---|---|
+| モデル変更 | `app/api/agent/plot/route.ts` / `plot/variants/route.ts` / `structure/route.ts` を `claude-haiku-4-5-20251001` に変更（速度優先） |
+| `max_tokens` | 8192 → 4096（8192 はタイムアウト再発）|
+| JSON スキーマ簡略化 | `lib/prompts/templates/plot-generator.ts` — 章ごとの `key_events[]` / `foreshadowing[]` を削除。`foreshadowing_list[]` を削除。要約を 100 字に短縮。最大 15 章の上限を明示 |
+| ロバスト JSON 抽出 | `indexOf('{')` / `lastIndexOf('}')` で JSON ブロックを切り出し（コードブロック・前後文散文に対応） |
+| エラーレスポンス改善 | 内部 catch が 200 + `{ raw }` を返していた → 422 + 日本語エラーメッセージに変更 |
+| エラー表示 UI | `structure/page.tsx` に `plotError` state を追加し、422 時にエラーをユーザーに表示 |
+
+---
+
+### 環境変数追加（Vercel）
+
+| 変数名 | 用途 |
+|---|---|
+| `INVITE_CODE` | 招待制登録の照合コード（未設定時は公開登録） |
+
+---
+
+---
+
+## 18. 機能改善・バグ修正（2026-06-24）
+
+### ① PlotGeneratorAgent SSEストリーミング化
+
+Vercel の 60 秒タイムアウトを根本解決するため、プロット生成をブロッキング → SSE ストリーミングに変更。
+
+| ファイル | 変更内容 |
+|---|---|
+| `app/api/agent/plot/route.ts` | `maxDuration = 300` / `dynamic = 'force-dynamic'` 追加。`client.messages.create({ stream: true })` でストリーミング。チャンクを `data: {"type":"delta","text":"..."}` 形式で逐次送信。全文受信後にJSONパース・DB保存・`{"type":"done"}` 送信 |
+| `editor/[id]/structure/page.tsx` | `handleGeneratePlot` を SSE リーダーに変更。`done` 受信後に `/api/projects/${id}` を再フェッチしてプロットを表示。エラー時は `plotError` に表示 |
+
+**SSE フォーマット:**
+- `data: {"type":"delta","text":"..."}` — テキストチャンク
+- `data: {"type":"done"}` — 完了（DB保存済み）
+- `data: {"type":"error","message":"..."}` — エラー
+
+---
+
+### ② プロット修正（STEP 6）の章選択 UI
+
+修正対象章をピルボタンで個別選択できるように改善。
+
+| ファイル | 変更内容 |
+|---|---|
+| `lib/prompts/templates/plot-refiner.ts` | `targetChapters?: number[]` パラメータ追加。指定時はプロンプトに「対象外の章は絶対に変更しないこと」という強制制約セクションを挿入 |
+| `app/api/agent/refine/route.ts` | リクエストボディから `targetChapters` を受け取りプロンプトへ渡す |
+| `editor/[id]/structure/page.tsx` | 修正パネルに章選択 UI を追加（全章一括ボタン＋章別ピルボタン）。選択中の章タイトル一覧を小テキスト表示。`closeRefinePanel` で状態を一括リセット |
+
+---
+
+### ③ 章構成生成（StructureAgent）の修正
+
+「AIの応答を解析できませんでした」エラーの根本原因はトークン不足による JSON 途中切断。
+
+| ファイル | 変更内容 |
+|---|---|
+| `app/api/agent/structure/route.ts` | `max_tokens` 4096 → 8192。プロンプト出力フィールドを4つ（chapterNumber / title / sceneType / scenes）に削減。`tempoRole` / `targetWords` / `chapterEndingRule` / `foreshadowingIds` はコードで算出。入力JSON を compact 化（pretty-print → `JSON.stringify`）。JSON 抽出を `indexOf('[')` / `lastIndexOf(']')` 方式に変更。エラー時 422 + 日本語メッセージ返却 |
+| `editor/[id]/structure/page.tsx` | `structureError` state 追加、API エラー時にメッセージを画面表示 |
+
+---
+
+### ④ 執筆エディタ（右パネル）の機能追加
+
+| 機能 | 実装内容 |
+|---|---|
+| **プロット内容表示** | 右パネル「章の情報」に `plotOutline.chapters[n].summary` を表示（読み取り専用） |
+| **視点キャラクター選択** | キャラクター一覧からドロップダウン選択 → `ChapterOutline.povCharacterId` に保存 → WritingAgent が名前解決して使用 |
+| **この章の進行メモ** | テキストエリアで大まかな流れを記入。1.5 秒デバウンスで `ChapterOutline.scenes[0].summary` に保存 → WritingAgent の `sceneSummary` として参照。「プロットから自動入力」ボタンでプロット概要を転記 |
+
+**関連ファイル:**
+
+| ファイル | 変更内容 |
+|---|---|
+| `app/api/chapter-outlines/[id]/route.ts` | **新規作成。** `povCharacterId` / `scenes` を PATCH するエンドポイント。所有確認は `project.userId` 経由 |
+| `app/api/agent/write/route.ts` | `outline.povCharacterId`（ID）を `project.characters` から名前に解決してプロンプトへ渡す |
+| `editor/[id]/write/[ch]/page.tsx` | `ProjectData` に `plotOutline` / `characters` 追加。`povCharId` / `sceneMemo` / `isSavingOutline` state 追加。`saveOutline` / `handlePovChange` / `handleSceneMemoChange` / `handleAutoMemo` ハンドラ追加 |
+| `components/editor/AiAssistantPanel.tsx` | 視点キャラ・進行メモ・プロット内容の3セクション追加。props 7つ追加 |
+
+---
+
+### ⑤ キャラクター口調フィールド追加
+
+| ファイル | 変更内容 |
+|---|---|
+| `prisma/schema.prisma` | `Character` モデルに `speechStyle String? @db.Text` 追加 |
+| `prisma/migrations/20260624000001_add_character_speech_style/migration.sql` | `ALTER TABLE "Character" ADD COLUMN "speechStyle" TEXT;` — Railway 本番 DB に適用済み |
+| `components/editor/CharacterCard.tsx` | カード末尾にインジゴ色の専用セクション「口調・方言・口癖」追加。複数行テキストエリア。「AI執筆時に反映されます」注記付き |
+| `lib/prompts/genre-rules.ts` | `Character` インターフェースに `speechStyle?: string | null` 追加 |
+| `lib/prompts/templates/writing-agent.ts` | キャラクターコンテキスト行に `/ 口調：〜` を追加（設定時のみ）。AI執筆時に各キャラの口調で書かれる |
+| `app/api/characters/[charId]/route.ts` / `CharactersClient.tsx` / `characters/page.tsx` | 全レイヤーで `speechStyle` を伝搬 |
+
+**Railway マイグレーション実行コマンド（ローカル PowerShell から）:**
+```powershell
+$env:DATABASE_URL="postgresql://postgres:<PW>@reseau.proxy.rlwy.net:22872/railway"
+npx prisma migrate deploy
+```
+
+---
+
 *このCLAUDE.mdはプロジェクトの唯一の設定ソースです。仕様変更時は必ずこのファイルを先に更新してください。*
