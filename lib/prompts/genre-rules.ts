@@ -23,14 +23,15 @@ export interface GenreRule {
 }
 
 export interface Character {
-  name: string;
-  role: string;
-  lack?: string | null;
-  want?: string | null;
-  weakness?: string | null;
-  arcStart?: string | null;
-  arcEnd?: string | null;
-  arcProgress: number;
+  name:         string;
+  role:         string;
+  lack?:        string | null;
+  want?:        string | null;
+  weakness?:    string | null;
+  arcStart?:    string | null;
+  arcEnd?:      string | null;
+  arcProgress:  number;
+  speechStyle?: string | null;
 }
 
 export interface Foreshadowing {

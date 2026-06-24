@@ -16,9 +16,10 @@ const makeChar = (overrides: Partial<Character> = {}): Character => ({
   arc: '成長型',
   arcStart: null,
   arcEnd: null,
-  trait: null,
+  trait:           null,
+  speechStyle:     null,
   relationshipRole: null,
-  arcProgress: 30,
+  arcProgress:     30,
   ...overrides,
 });
 

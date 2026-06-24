@@ -21,6 +21,7 @@ export async function PATCH(
     want?:           string | null;
     weakness?:       string | null;
     trait?:          string | null;
+    speechStyle?:    string | null;
     relationshipRole?: string | null;
     age?:            number | null;
   };

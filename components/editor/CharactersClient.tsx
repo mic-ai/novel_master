@@ -15,6 +15,7 @@ type Character = {
   arcStart:        string | null;
   arcEnd:          string | null;
   trait:           string | null;
+  speechStyle:     string | null;
   relationshipRole: string | null;
   arcProgress:     number;
 };

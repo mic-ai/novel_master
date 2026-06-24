@@ -31,6 +31,7 @@ export default async function CharactersPage({ params }: Props) {
       arcStart:        true,
       arcEnd:          true,
       trait:           true,
+      speechStyle:     true,
       relationshipRole: true,
       arcProgress:     true,
     },

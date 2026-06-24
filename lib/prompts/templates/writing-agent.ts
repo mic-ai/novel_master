@@ -39,7 +39,10 @@ ${ctx.sceneSummary}
 ${endRules}
 
 ## キャラクターコンテキスト
-${ctx.characters.map((c) => `${c.name}(${c.role}): arc進行度=${c.arcProgress}%`).join('\n')}
+${ctx.characters.map((c) => {
+  const speech = c.speechStyle ? ` / 口調：${c.speechStyle}` : '';
+  return `${c.name}(${c.role}): arc進行度=${c.arcProgress}%${speech}`;
+}).join('\n')}
 
 ## 前章の要約
 ${ctx.prevChapterSummary ?? '（序章のため前章なし）'}

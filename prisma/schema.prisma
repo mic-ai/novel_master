@@ -108,6 +108,7 @@ model Character {
   arcStart         String?
   arcEnd           String?
   trait            String?
+  speechStyle      String? @db.Text
   relationshipRole String?
   arcProgress      Int     @default(0)
 }

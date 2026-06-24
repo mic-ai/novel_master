@@ -14,6 +14,7 @@ type Character = {
   arcStart:        string | null;
   arcEnd:          string | null;
   trait:           string | null;
+  speechStyle:     string | null;
   relationshipRole: string | null;
   arcProgress:     number;
 };
@@ -143,6 +144,27 @@ export function CharacterCard({ character, onSave }: Props) {
           </div>
         ))}
       </dl>
+
+      {/* 口調・方言 専用セクション */}
+      <div className="mt-4 rounded-lg border border-indigo-100 bg-indigo-50 p-3">
+        <div className="mb-1.5 flex items-center gap-1.5">
+          <span className="text-xs font-semibold text-indigo-700">口調・方言・口癖</span>
+          <span className="text-xs text-indigo-400">AI執筆時に反映されます</span>
+        </div>
+        {editing ? (
+          <textarea
+            value={draft.speechStyle ?? ''}
+            onChange={e => setDraft(d => ({ ...d, speechStyle: e.target.value || null }))}
+            rows={3}
+            placeholder={'例：関西弁。「〜やで」「〜ちゃう」を多用。\n語尾に「〜だぜ」をつける。乱暴な口調。\n丁寧語のみ。常に敬語を崩さない。'}
+            className="w-full rounded border border-indigo-200 bg-white px-2 py-1.5 text-xs text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-none leading-relaxed"
+          />
+        ) : (
+          <p className="whitespace-pre-wrap text-xs text-gray-700 leading-relaxed">
+            {character.speechStyle ?? <span className="text-gray-300">未設定</span>}
+          </p>
+        )}
+      </div>
 
       {editing && (
         <button
