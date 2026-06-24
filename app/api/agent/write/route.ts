@@ -47,6 +47,11 @@ export async function POST(req: Request) {
   const scenes = outline.scenes as Array<{ index: number; summary: string; povCharacter?: string }> | null;
   const scene = scenes?.[sceneIndex];
 
+  // povCharacterId（ID文字列）をキャラクター名に解決
+  const povCharName = outline.povCharacterId
+    ? project.characters.find((c) => c.id === outline.povCharacterId)?.name
+    : undefined;
+
   const prompt = buildWritingPrompt({
     genre:               project.genre,
     media:               project.media,
@@ -54,7 +59,7 @@ export async function POST(req: Request) {
     totalChapters:       plotOutline?.total_chapters ?? 20,
     sceneType:           outline.sceneType ?? 'daily',
     sceneSummary:        scene?.summary ?? outline.title ?? `第${chapterNumber}章`,
-    povCharacter:        scene?.povCharacter ?? outline.povCharacterId ?? '主人公',
+    povCharacter:        scene?.povCharacter ?? povCharName ?? '主人公',
     targetWords:         outline.targetWords ?? 3000,
     characters:          project.characters,
     prevChapterSummary:  prevChapter?.summary ?? undefined,

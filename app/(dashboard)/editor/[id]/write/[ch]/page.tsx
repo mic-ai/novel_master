@@ -21,6 +21,22 @@ interface ChapterOutline {
   tempoRole?:       string;
   chapterEndingRule?: string;
   foreshadowingIds: string[];
+  povCharacterId?:  string;
+  scenes?:          Array<{ index: number; summary: string; povCharacter?: string }> | null;
+}
+
+interface PlotChapter {
+  number:        number;
+  title:         string;
+  summary:       string;
+  scene_type:    string;
+  tempo_role:    string;
+}
+
+interface Character {
+  id:   string;
+  name: string;
+  role: string;
 }
 
 interface ForeshadowingItem {
@@ -39,12 +55,14 @@ interface ReviewResult {
 }
 
 interface ProjectData {
-  id:             string;
-  title:          string;
-  genre:          string;
-  media:          string;
+  id:              string;
+  title:           string;
+  genre:           string;
+  media:           string;
+  plotOutline:     { total_chapters: number; chapters: PlotChapter[] } | null;
+  characters:      Character[];
   chapterOutlines: ChapterOutline[];
-  foreshadowing:  ForeshadowingItem[];
+  foreshadowing:   ForeshadowingItem[];
 }
 
 export default function WritePage({
@@ -66,7 +84,11 @@ export default function WritePage({
   const [loading, setLoading]       = useState(true);
   const autoSaveTimer               = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleTimer                   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const outlineSaveTimer            = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showContinuation, setShowContinuation] = useState(false);
+  const [povCharId, setPovCharId]               = useState('');
+  const [sceneMemo, setSceneMemo]               = useState('');
+  const [isSavingOutline, setIsSavingOutline]   = useState(false);
   const [continuationText, setContinuationText] = useState('');
   const [isContinuing, setIsContinuing]         = useState(false);
 
@@ -91,6 +113,11 @@ export default function WritePage({
     ]).then(([projectRes, chapterRes]: [{ project: ProjectData }, { chapter?: { content?: string } }]) => {
       setProject(projectRes.project);
       setContent(chapterRes.chapter?.content ?? '');
+      const loadedOutline = projectRes.project.chapterOutlines.find(
+        (o: ChapterOutline) => o.chapterNumber === chapterNumber,
+      );
+      setPovCharId(loadedOutline?.povCharacterId ?? '');
+      setSceneMemo(loadedOutline?.scenes?.[0]?.summary ?? '');
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [id, chapterNumber]);
@@ -127,6 +154,46 @@ export default function WritePage({
       setIsSaving(false);
     }
   }, [project, chapterNumber, outline]);
+
+  // ChapterOutline（POV・進行メモ）をDBに保存
+  const saveOutline = useCallback(async (charId: string, memo: string) => {
+    if (!outline) return;
+    setIsSavingOutline(true);
+    try {
+      const charName = project?.characters.find((c) => c.id === charId)?.name;
+      const scenes = memo.trim()
+        ? [{ index: 0, summary: memo, povCharacter: charName ?? '' }]
+        : null;
+      await fetch(`/api/chapter-outlines/${outline.id}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          povCharacterId: charId || null,
+          scenes,
+        }),
+      });
+    } finally {
+      setIsSavingOutline(false);
+    }
+  }, [outline, project]);
+
+  const handlePovChange = useCallback((charId: string) => {
+    setPovCharId(charId);
+    void saveOutline(charId, sceneMemo);
+  }, [saveOutline, sceneMemo]);
+
+  const handleSceneMemoChange = useCallback((memo: string) => {
+    setSceneMemo(memo);
+    if (outlineSaveTimer.current) clearTimeout(outlineSaveTimer.current);
+    outlineSaveTimer.current = setTimeout(() => saveOutline(povCharId, memo), 1500);
+  }, [saveOutline, povCharId]);
+
+  const handleAutoMemo = useCallback(() => {
+    const plotChapter = project?.plotOutline?.chapters.find((c) => c.number === chapterNumber);
+    if (plotChapter?.summary) {
+      handleSceneMemoChange(plotChapter.summary);
+    }
+  }, [project, chapterNumber, handleSceneMemoChange]);
 
   // AIで生成（ストリーミング）
   const handleGenerate = useCallback(async () => {
@@ -433,6 +500,16 @@ export default function WritePage({
               review={review}
               isReviewing={isReviewing}
               onReview={handleReview}
+              plotChapterSummary={
+                project.plotOutline?.chapters.find((c) => c.number === chapterNumber)?.summary
+              }
+              characters={project.characters}
+              povCharId={povCharId}
+              onPovChange={handlePovChange}
+              sceneMemo={sceneMemo}
+              onSceneMemoChange={handleSceneMemoChange}
+              onAutoMemo={handleAutoMemo}
+              isSavingOutline={isSavingOutline}
             />
           </div>
         </div>

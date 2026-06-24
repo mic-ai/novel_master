@@ -24,17 +24,31 @@ interface ForeshadowingItem {
   isFake:      boolean;
 }
 
+interface Character {
+  id:   string;
+  name: string;
+  role: string;
+}
+
 interface AiAssistantPanelProps {
-  projectId:       string;
-  chapterNumber:   number;
-  outline:         { title?: string; sceneType?: string; tempoRole?: string; chapterEndingRule?: string } | null;
+  projectId:          string;
+  chapterNumber:      number;
+  outline:            { title?: string; sceneType?: string; tempoRole?: string; chapterEndingRule?: string } | null;
   foreshadowingItems: ForeshadowingItem[];
-  content:         string;
-  isGenerating:    boolean;
-  onGenerate:      () => void;
-  review:          ReviewResult | null;
-  isReviewing:     boolean;
-  onReview:        () => void;
+  content:            string;
+  isGenerating:       boolean;
+  onGenerate:         () => void;
+  review:             ReviewResult | null;
+  isReviewing:        boolean;
+  onReview:           () => void;
+  plotChapterSummary?: string;
+  characters:          Character[];
+  povCharId:           string;
+  onPovChange:         (charId: string) => void;
+  sceneMemo:           string;
+  onSceneMemoChange:   (memo: string) => void;
+  onAutoMemo:          () => void;
+  isSavingOutline?:    boolean;
 }
 
 const SCORE_COLOR = (score: number, max: number) => {
@@ -54,6 +68,14 @@ export default function AiAssistantPanel({
   review,
   isReviewing,
   onReview,
+  plotChapterSummary,
+  characters,
+  povCharId,
+  onPovChange,
+  sceneMemo,
+  onSceneMemoChange,
+  onAutoMemo,
+  isSavingOutline,
 }: AiAssistantPanelProps) {
   return (
     <div className="flex flex-col gap-5 text-sm">
@@ -68,7 +90,55 @@ export default function AiAssistantPanel({
           {outline?.chapterEndingRule && (
             <div><span className="text-gray-400">章末ルール:</span> {outline.chapterEndingRule}</div>
           )}
+          {plotChapterSummary && (
+            <div className="pt-1.5 border-t border-gray-200">
+              <div className="text-gray-400 mb-1">プロット内容</div>
+              <p className="leading-relaxed text-gray-600">{plotChapterSummary}</p>
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* 視点キャラクター */}
+      <div>
+        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">視点キャラクター</div>
+        <select
+          value={povCharId}
+          onChange={(e) => onPovChange(e.target.value)}
+          className="w-full text-xs rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+        >
+          <option value="">（指定なし — AIが判断）</option>
+          {characters.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}（{c.role}）
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* この章の進行 */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide">この章の進行</div>
+          <button
+            type="button"
+            onClick={onAutoMemo}
+            className="text-xs text-indigo-500 hover:text-indigo-700 transition"
+            title="プロット概要からこの章の進行を自動入力します"
+          >
+            プロットから自動入力
+          </button>
+        </div>
+        <textarea
+          value={sceneMemo}
+          onChange={(e) => onSceneMemoChange(e.target.value)}
+          rows={4}
+          placeholder="この章の大まかな流れを記入してください。AIで生成する際のヒントになります。&#10;例：主人公が敵と遭遇し、苦戦の末に仲間に救われる。"
+          className="w-full text-xs rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-gray-700 placeholder-gray-300 focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-none leading-relaxed"
+        />
+        {isSavingOutline && (
+          <p className="text-xs text-gray-400 mt-1">保存中...</p>
+        )}
       </div>
 
       {/* 伏線リマインダー */}
