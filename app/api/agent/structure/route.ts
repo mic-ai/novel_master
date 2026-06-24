@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { prisma } from '@/lib/db/prisma';
 import { getGenreContext, getSceneWordRange } from '@/lib/agent/utils/get-genre-context';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -86,7 +86,10 @@ JSONのみで返してください（配列形式）:
   }
 
   try {
-    const _raw = content.text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+    let _raw = content.text.trim();
+    const arrStart = _raw.indexOf('[');
+    const arrEnd   = _raw.lastIndexOf(']');
+    if (arrStart !== -1 && arrEnd !== -1) _raw = _raw.slice(arrStart, arrEnd + 1);
     const outlines = JSON.parse(_raw) as Array<{
       chapterNumber: number;
       title: string;
@@ -127,6 +130,10 @@ JSONのみで返してください（配列形式）:
 
     return Response.json({ chapterOutlines: created });
   } catch {
-    return Response.json({ raw: content.text });
+    console.error('[structure] JSON parse failed. raw[:300]:', content.text.slice(0, 300));
+    return Response.json(
+      { error: 'AIの応答を解析できませんでした。再試行してください。' },
+      { status: 422 },
+    );
   }
 }

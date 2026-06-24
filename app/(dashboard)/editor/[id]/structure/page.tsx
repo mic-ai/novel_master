@@ -43,7 +43,8 @@ export default function StructurePage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [plotError, setPlotError] = useState('');
-  const [structuring, setStructuring] = useState(false);
+  const [structuring, setStructuring]     = useState(false);
+  const [structureError, setStructureError] = useState('');
   const [refining, setRefining]           = useState(false);
   const [showRefine, setShowRefine]       = useState(false);
   const [refineRequest, setRefineRequest] = useState('');
@@ -192,6 +193,7 @@ export default function StructurePage({ params }: { params: { id: string } }) {
   const handleGenerateStructure = async () => {
     if (!project) return;
     setStructuring(true);
+    setStructureError('');
     try {
       const res = await fetch('/api/agent/structure', {
         method:  'POST',
@@ -200,11 +202,18 @@ export default function StructurePage({ params }: { params: { id: string } }) {
       });
       const data = await res.json() as {
         chapterOutlines?: Array<{ chapterNumber: number; title?: string; sceneType?: string; tempoRole?: string }>;
+        error?: string;
       };
+      if (!res.ok || data.error) {
+        setStructureError(data.error ?? '章構成の生成に失敗しました。再試行してください。');
+        return;
+      }
       if (data.chapterOutlines) {
         setProject((prev) => prev ? { ...prev, chapterOutlines: data.chapterOutlines ?? [] } : prev);
         setActiveTab('structure');
       }
+    } catch {
+      setStructureError('通信エラーが発生しました。しばらくしてから再試行してください。');
     } finally {
       setStructuring(false);
     }
@@ -489,6 +498,9 @@ export default function StructurePage({ params }: { params: { id: string } }) {
                     {structuring ? '章構成生成中...' : '章構成を生成 →'}
                   </button>
                 </div>
+                {structureError && (
+                  <p className="text-sm text-red-500">{structureError}</p>
+                )}
 
                 {/* 3パターン比較パネル */}
                 {variants && (
@@ -579,6 +591,9 @@ export default function StructurePage({ params }: { params: { id: string } }) {
                 </button>
                 {!plotOutline && (
                   <p className="text-sm text-red-500 mt-3">先にプロットを生成してください</p>
+                )}
+                {structureError && (
+                  <p className="text-sm text-red-500 mt-3">{structureError}</p>
                 )}
               </div>
             ) : (
