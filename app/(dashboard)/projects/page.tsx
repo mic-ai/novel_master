@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db/prisma';
+import ProjectDeleteButton from '@/components/projects/ProjectDeleteButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,26 +59,30 @@ export default async function ProjectsPage() {
       ) : (
         <div className="grid gap-4">
           {projects.map((p) => (
-            <Link
-              key={p.id}
-              href={`/editor/${p.id}/structure`}
-              className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md hover:border-indigo-300 transition-all flex items-center gap-5"
-            >
-              <div className="text-4xl">{GENRE_ICONS[p.genre] ?? '📖'}</div>
-              <div className="flex-1 min-w-0">
-                <h2 className="font-bold text-gray-900 text-lg truncate">{p.title}</h2>
-                <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
-                  <span>{STATUS_LABELS[p.status] ?? p.status}</span>
-                  <span>·</span>
-                  <span>{p._count.chapters}章</span>
-                  <span>·</span>
-                  <span>{p.media === 'book' ? '書籍' : 'ウェブ小説'}</span>
+            <div key={p.id} className="relative group">
+              <Link
+                href={`/editor/${p.id}/structure`}
+                className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md hover:border-indigo-300 transition-all flex items-center gap-5 block"
+              >
+                <div className="text-4xl">{GENRE_ICONS[p.genre] ?? '📖'}</div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="font-bold text-gray-900 text-lg truncate">{p.title}</h2>
+                  <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
+                    <span>{STATUS_LABELS[p.status] ?? p.status}</span>
+                    <span>·</span>
+                    <span>{p._count.chapters}章</span>
+                    <span>·</span>
+                    <span>{p.media === 'book' ? '書籍' : 'ウェブ小説'}</span>
+                  </div>
                 </div>
+                <div className="text-gray-400 text-sm flex-shrink-0">
+                  {new Date(p.updatedAt).toLocaleDateString('ja-JP')}
+                </div>
+              </Link>
+              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                <ProjectDeleteButton projectId={p.id} projectTitle={p.title} />
               </div>
-              <div className="text-gray-400 text-sm flex-shrink-0">
-                {new Date(p.updatedAt).toLocaleDateString('ja-JP')}
-              </div>
-            </Link>
+            </div>
           ))}
         </div>
       )}

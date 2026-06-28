@@ -50,3 +50,23 @@ export async function PATCH(
 
   return Response.json({ success: true });
 }
+
+export async function DELETE(
+  _req: Request,
+  { params }: { params: { id: string } },
+) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return Response.json({ error: '認証が必要です' }, { status: 401 });
+  }
+
+  const deleted = await prisma.project.deleteMany({
+    where: { id: params.id, userId: session.user.id },
+  });
+
+  if (deleted.count === 0) {
+    return Response.json({ error: 'プロジェクトが見つかりません' }, { status: 404 });
+  }
+
+  return Response.json({ success: true });
+}
