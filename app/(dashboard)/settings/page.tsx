@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react';
 import { useState } from 'react';
 import Image from 'next/image';
 import { PLANS, FREE_PLAN } from '@/lib/plans';
+import AdminPlanSwitcher from '@/components/admin/AdminPlanSwitcher';
 
 const PLAN_ORDER = ['FREE', 'STARTER', 'PRO', 'TEAM'] as const;
 
@@ -169,6 +170,8 @@ export default function SettingsPage() {
           </div>
         )}
       </section>
+
+      <AdminPlanSwitcher />
     </div>
   );
 }
