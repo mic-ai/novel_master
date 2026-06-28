@@ -21,16 +21,18 @@ export async function POST(req: Request) {
   const genreRule = GENRE_RULES[genre];
   const specific = genreRule ? JSON.stringify(genreRule['fantasy_specific'] ?? genreRule['sf_specific'] ?? {}) : '{}';
 
-  const client = new Anthropic();
-  const message = await client.messages.create({
-    model: 'claude-sonnet-4-5',
-    max_tokens: 2048,
-    system: `あなたは小説の世界観設計の専門家です。
+  let rawText = '';
+  try {
+    const client = new Anthropic();
+    const message = await client.messages.create({
+      model:      'claude-haiku-4-5-20251001',
+      max_tokens: 2048,
+      system: `あなたは小説の世界観設計の専門家です。
 ジャンル「${genreRule?.label ?? genre}」の世界設定を構築します。
 
 ジャンル固有ルール: ${specific}
 
-ユーザーの入力から世界設定を整理し、JSONのみで返してください:
+ユーザーの入力から世界設定を整理し、JSONのみで返してください（前後に説明文は不要）:
 {
   "era": "時代・時期",
   "location": "舞台・場所",
@@ -40,17 +42,26 @@ export async function POST(req: Request) {
   "atmosphere": "全体の雰囲気・トーン",
   "consistency_warnings": ["内部矛盾の警告（あれば）"]
 }`,
-    messages: [{ role: 'user', content: userInput }],
-  });
+      messages: [{ role: 'user', content: userInput }],
+    });
 
-  const content = message.content[0];
-  if (content?.type !== 'text') {
-    return Response.json({ error: 'AI応答エラー' }, { status: 500 });
+    const content = message.content[0];
+    if (content?.type !== 'text') {
+      return Response.json({ error: `AI応答エラー（type: ${content?.type ?? 'none'}）` }, { status: 500 });
+    }
+    rawText = content.text;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return Response.json({ error: `AI APIエラー: ${msg}` }, { status: 500 });
   }
 
   try {
-    const cleaned = content.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-    const worldSettings = JSON.parse(cleaned) as Record<string, unknown>;
+    const start = rawText.indexOf('{');
+    const end   = rawText.lastIndexOf('}');
+    if (start === -1 || end === -1) {
+      return Response.json({ error: 'AI応答にJSONが含まれていませんでした', raw: rawText }, { status: 422 });
+    }
+    const worldSettings = JSON.parse(rawText.slice(start, end + 1)) as Record<string, unknown>;
 
     await prisma.project.update({
       where: { id: projectId },
@@ -60,6 +71,6 @@ export async function POST(req: Request) {
 
     return Response.json({ worldSettings });
   } catch {
-    return Response.json({ error: 'AI応答のJSON解析に失敗しました', raw: content.text }, { status: 500 });
+    return Response.json({ error: 'AI応答のJSON解析に失敗しました', raw: rawText }, { status: 422 });
   }
 }

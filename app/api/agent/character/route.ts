@@ -17,14 +17,16 @@ export async function POST(req: Request) {
   };
   const { projectId, userInput, genre } = body;
 
-  const client = new Anthropic();
-  const message = await client.messages.create({
-    model: 'claude-sonnet-4-5',
-    max_tokens: 2048,
-    system: `あなたは小説キャラクター設計の専門家です。
+  let rawText = '';
+  try {
+    const client = new Anthropic();
+    const message = await client.messages.create({
+      model:      'claude-haiku-4-5-20251001',
+      max_tokens: 2048,
+      system: `あなたは小説キャラクター設計の専門家です。
 ジャンル「${genre}」に最適なキャラクターを設計します。
 
-ユーザーの入力から以下のキャラクター情報を引き出し、JSONのみで返してください:
+ユーザーの入力から以下のキャラクター情報を引き出し、JSONのみで返してください（前後に説明文は不要）:
 [
   {
     "role": "protagonist|heroine|antagonist|mentor|sub のいずれか",
@@ -39,27 +41,28 @@ export async function POST(req: Request) {
     "trait": "口癖・特徴的行動"
   }
 ]`,
-    messages: [{ role: 'user', content: userInput }],
-  });
+      messages: [{ role: 'user', content: userInput }],
+    });
 
-  const content = message.content[0];
-  if (content?.type !== 'text') {
-    return Response.json({ error: 'AI応答エラー' }, { status: 500 });
+    const content = message.content[0];
+    if (content?.type !== 'text') {
+      return Response.json({ error: `AI応答エラー（type: ${content?.type ?? 'none'}）` }, { status: 500 });
+    }
+    rawText = content.text;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return Response.json({ error: `AI APIエラー: ${msg}` }, { status: 500 });
   }
 
   try {
-    const _raw = content.text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-    const characters = JSON.parse(_raw) as Array<{
-      role: string;
-      name: string;
-      age?: number;
-      lack?: string;
-      want?: string;
-      weakness?: string;
-      arc?: string;
-      arcStart?: string;
-      arcEnd?: string;
-      trait?: string;
+    const start = rawText.indexOf('[');
+    const end   = rawText.lastIndexOf(']');
+    if (start === -1 || end === -1) {
+      return Response.json({ error: 'AI応答にJSONが含まれていませんでした', raw: rawText }, { status: 422 });
+    }
+    const characters = JSON.parse(rawText.slice(start, end + 1)) as Array<{
+      role: string; name: string; age?: number; lack?: string; want?: string;
+      weakness?: string; arc?: string; arcStart?: string; arcEnd?: string; trait?: string;
     }>;
 
     const created = await Promise.all(
@@ -84,6 +87,6 @@ export async function POST(req: Request) {
 
     return Response.json({ characters: created });
   } catch {
-    return Response.json({ raw: content.text });
+    return Response.json({ error: 'AI応答のJSON解析に失敗しました', raw: rawText }, { status: 422 });
   }
 }

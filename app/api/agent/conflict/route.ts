@@ -22,16 +22,18 @@ export async function POST(req: Request) {
   const genreRule = GENRE_RULES[genre];
   const parts = genreRule?.parts.book.map((p) => p.name).join('、') ?? '序章、第一部、第二部、終章';
 
-  const client = new Anthropic();
-  const message = await client.messages.create({
-    model: 'claude-sonnet-4-5',
-    max_tokens: 1024,
-    system: `あなたは小説のコンフリクト設計の専門家です。
+  let rawText = '';
+  try {
+    const client = new Anthropic();
+    const message = await client.messages.create({
+      model:      'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      system: `あなたは小説のコンフリクト設計の専門家です。
 ジャンル「${genreRule?.label ?? genre}」の主人公の目標と障害を三幕構成に分類します。
 
 パート構成: ${parts}
 
-以下のJSONのみで返してください:
+以下のJSONのみで返してください（前後に説明文は不要）:
 {
   "goal": "外的目標",
   "inner_goal": "内的目標（感情・成長面）",
@@ -44,22 +46,31 @@ export async function POST(req: Request) {
     }
   ]
 }`,
-    messages: [
-      {
-        role: 'user',
-        content: `外的目標: ${goal}\n障害リスト: ${obstacleInput}`,
-      },
-    ],
-  });
+      messages: [
+        {
+          role:    'user',
+          content: `外的目標: ${goal}\n障害リスト: ${obstacleInput}`,
+        },
+      ],
+    });
 
-  const content = message.content[0];
-  if (content?.type !== 'text') {
-    return Response.json({ error: 'AI応答エラー' }, { status: 500 });
+    const content = message.content[0];
+    if (content?.type !== 'text') {
+      return Response.json({ error: `AI応答エラー（type: ${content?.type ?? 'none'}）` }, { status: 500 });
+    }
+    rawText = content.text;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return Response.json({ error: `AI APIエラー: ${msg}` }, { status: 500 });
   }
 
   try {
-    const _raw = content.text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-    const result = JSON.parse(_raw) as {
+    const start  = rawText.indexOf('{');
+    const end    = rawText.lastIndexOf('}');
+    if (start === -1 || end === -1) {
+      return Response.json({ error: 'AI応答にJSONが含まれていませんでした', raw: rawText }, { status: 422 });
+    }
+    const result = JSON.parse(rawText.slice(start, end + 1)) as {
       goal: string;
       inner_goal: string;
       obstacles: Array<{ description: string; part: string; type: string; intensity: number }>;
@@ -74,6 +85,6 @@ export async function POST(req: Request) {
     });
     return Response.json(result);
   } catch {
-    return Response.json({ raw: content.text });
+    return Response.json({ error: 'AI応答のJSON解析に失敗しました', raw: rawText }, { status: 422 });
   }
 }
