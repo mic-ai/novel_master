@@ -42,6 +42,7 @@ export default function NewProjectPage() {
   const [titleInput, setTitleInput] = useState(saved.project?.title ?? '');
   const [showTitleInput, setShowTitleInput] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
 
   useEffect(() => {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ step, project }));
@@ -49,12 +50,14 @@ export default function NewProjectPage() {
 
   const handleGenreConfirm = async (data: { genre: string; subgenre?: string; media: string }) => {
     setShowTitleInput(true);
+    setCreateError('');
     setProject((prev) => prev ? { ...prev, ...data } : { id: '', ...data, title: '' });
   };
 
   const handleCreateProject = async () => {
     if (!project || !titleInput.trim()) return;
     setCreating(true);
+    setCreateError('');
     try {
       const res = await fetch('/api/projects', {
         method:  'POST',
@@ -65,11 +68,19 @@ export default function NewProjectPage() {
           media:  project.media,
         }),
       });
-      const data = await res.json() as { project?: { id: string } };
+      const data = await res.json() as { project?: { id: string }; error?: string };
+      if (!res.ok) {
+        setCreateError(data.error ?? `エラーが発生しました（${res.status}）`);
+        return;
+      }
       if (data.project) {
         setProject({ ...project, id: data.project.id, title: titleInput });
         setStep(2);
+      } else {
+        setCreateError('プロジェクトの作成に失敗しました。もう一度お試しください。');
       }
+    } catch (e) {
+      setCreateError(`通信エラーが発生しました: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setCreating(false);
     }
@@ -156,6 +167,11 @@ export default function NewProjectPage() {
                   placeholder="例: 桜色の約束"
                   className="w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                 />
+                {createError && (
+                  <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+                    {createError}
+                  </p>
+                )}
                 <button
                   onClick={handleCreateProject}
                   disabled={creating || !titleInput.trim()}
